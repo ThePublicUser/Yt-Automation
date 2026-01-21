@@ -72,6 +72,32 @@ TOPIC_GENRES = [
     'Crush Advice',
     'Passionate Romance',
     'Love Memes',
+    'Digital Threesomes',
+    'AI Sex & Erotic AI',
+    'Playful Pleasure',
+    'Office Sex Revival',
+    'IRL Hookups',
+    'Age-Gap Heat',
+    'Pegging Power',
+    'Femdom Rules',
+    'Chastity Games',
+    'Cuckold Fantasies',
+    'Praise Kink',
+    'Humiliation Play',
+    'Audio Erotica',
+    'Self-Pleasure Era'
+    'Edging & Orgasm Control',
+    'Sexting Foreplay',
+    'Modern Monogamy',
+    'Wax & Ice Play',
+    'Sex Fights',
+    'Spicy Couple Challenges',
+    'Sexual Confidence',
+    'Intimate Dirty Talk',
+    'Kink Exploration',
+    'Digital Foreplay',
+    'Fetish Fun',
+    'Intimate Communication Mastery'
 ]
 
 
@@ -291,5 +317,6 @@ def chunks_to_pexels_titles(chunks: list[str]) -> list[dict]:
 # ------------------ Example Usage ------------------
 def get_genre() -> str:
     return random.choice(TOPIC_GENRES)
+
 
 
