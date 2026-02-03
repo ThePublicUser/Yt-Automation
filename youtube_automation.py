@@ -75,7 +75,7 @@ def upload_video_to_yt(file_path, title, description="", tags=None, category_id=
     Uploads a video to the YouTube channel associated with the OAuth credentials.
     """
     youtube = get_authenticated_service()
-
+    print(youtube)
     body = {
         "snippet": {
             "title": title,
@@ -96,6 +96,7 @@ def upload_video_to_yt(file_path, title, description="", tags=None, category_id=
         body=body,
         media_body=media
     )
+    print(request)
 
     response = None
     while response is None:
