@@ -297,12 +297,7 @@ def download_best_quality_video(video, output_path, headers):
                     f.write(chunk)
                     downloaded_size += len(chunk)
                     
-                    # Show progress
-                    if total_size > 0:
-                        progress = (downloaded_size / total_size) * 100
-                        print(f"\r      Progress: {progress:.1f}%", end='', flush=True)
-        
-        print()  # New line after progress
+                   
         return True
         
     except Exception as e:
@@ -311,5 +306,6 @@ def download_best_quality_video(video, output_path, headers):
         if output_path.exists():
             output_path.unlink()
         return False
+
 
 
