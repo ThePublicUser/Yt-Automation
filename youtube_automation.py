@@ -1,114 +1,126 @@
-import base64
 import os
 import pickle
+import base64
+from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from googleapiclient.errors import HttpError
 from google_auth_oauthlib.flow import InstalledAppFlow
-from dotenv import load_dotenv
-import google.auth.transport.requests
+from google.auth.transport.requests import Request
 
-load_dotenv() 
-# Path to your OAuth client secrets JSON
+load_dotenv()
+
+# -------------------------------
+# Configuration
+# -------------------------------
 CLIENT_SECRETS_FILE = os.getenv("CLIENT_SECRET_JSON", "client_secrets.json")
-# Optional: GitHub Actions secret base64
 CLIENT_SECRET_PICKLE_BASE64 = os.getenv("CLIENT_SECRET_PICKLE_BASE64")
-# Optional: path to base64 file
 BASE64_FILE_PATH = "token_base64.txt"
-
-
-
-
-# If modifying scopes, delete token.pickle
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 
+# -------------------------------
+# Authentication
+# -------------------------------
 def get_authenticated_service():
     creds = None
-    
-    # 1️⃣ Try loading from file if exists
 
-    # Check if token exists
-    if os.path.exists(BASE64_FILE_PATH):
-        with open(BASE64_FILE_PATH, "r") as f:
-            try:
+    try:
+        # 1️⃣ Load credentials from local base64 file (optional)
+        if os.path.exists(BASE64_FILE_PATH):
+            with open(BASE64_FILE_PATH, "r") as f:
                 base64_str = f.read().strip()
                 pickle_bytes = base64.b64decode(base64_str)
                 creds = pickle.loads(pickle_bytes)
                 print("✅ Loaded credentials from base64 file")
-            except Exception as e:
-                print(f"⚠️ Failed to load credentials from file: {e}")
-                
-    # 2️⃣ Fallback: load from GitHub secret / .env
-    elif CLIENT_SECRET_PICKLE_BASE64:
-        try:
+
+        # 2️⃣ Load from environment variable (GitHub secret)
+        elif CLIENT_SECRET_PICKLE_BASE64:
             pickle_bytes = base64.b64decode(CLIENT_SECRET_PICKLE_BASE64)
             creds = pickle.loads(pickle_bytes)
-            print("✅ Loaded credentials from base64 env variable")
-        except Exception as e:
-            print(f"⚠️ Failed to load credentials from env: {e}")
-            
-    # 3️⃣ Fallback: local token.pickle
-    elif os.path.exists("token.pickle"):
-        with open("token.pickle", "rb") as f:
-            creds = pickle.load(f)
-            print("✅ Loaded credentials from token.pickle")
-            
-            
+            print("✅ Loaded credentials from env variable")
 
-    # If no valid creds, do OAuth login
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(google.auth.transport.requests.Request())
+        # 3️⃣ Load from local token.pickle
+        elif os.path.exists("token.pickle"):
+            with open("token.pickle", "rb") as f:
+                creds = pickle.load(f)
+                print("✅ Loaded credentials from token.pickle")
+
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-            # ⚡ Updated: Use run_local_server instead of run_console
-            creds = flow.run_local_server(port=0)
+            raise Exception("❌ No credentials found. Please generate token.pickle locally.")
 
-        # Save token for future
-        with open("token.pickle", "wb") as f:
-            pickle.dump(creds, f)
+        # Refresh expired token
+        if creds and creds.expired and creds.refresh_token:
+            print("🔄 Refreshing token...")
+            creds.refresh(Request())
+            print("✅ Token refreshed successfully")
 
-    # Build YouTube service
-    return build("youtube", "v3", credentials=creds)
+        # Validate credentials
+        if not creds or not creds.valid:
+            raise Exception("❌ Credentials invalid after refresh")
 
-def upload_video_to_yt(file_path, title, description="", tags=None, category_id="22", privacy_status="private",made_for_kids=False):
-    """
-    Uploads a video to the YouTube channel associated with the OAuth credentials.
-    """
-    youtube = get_authenticated_service()
-    print(youtube)
-    body = {
-        "snippet": {
-            "title": title,
-            "description": description,
-            "tags": tags or [],
-            "categoryId": category_id
-        },
-        "status": {
-            "privacyStatus": privacy_status,
-            "selfDeclaredMadeForKids": made_for_kids
+        # Build YouTube service
+        youtube = build("youtube", "v3", credentials=creds)
+        return youtube
+
+    except Exception as e:
+        print("🚨 AUTHENTICATION FAILED")
+        print(e)
+        return None
+
+# -------------------------------
+# Upload Video
+# -------------------------------
+def upload_video_to_yt(file_path, title, description="", tags=None,
+                       category_id="22", privacy_status="private",
+                       made_for_kids=False):
+
+    try:
+        # Check if video exists
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Video file not found: {file_path}")
+
+        youtube = get_authenticated_service()
+        if youtube is None:
+            raise Exception("YouTube service not initialized")
+
+        # Build request body
+        body = {
+            "snippet": {
+                "title": title,
+                "description": description,
+                "tags": tags or [],
+                "categoryId": category_id
+            },
+            "status": {
+                "privacyStatus": privacy_status,
+                "selfDeclaredMadeForKids": made_for_kids
+            }
         }
-    }
 
-    media = MediaFileUpload(file_path, chunksize=-1, resumable=True)
+        media = MediaFileUpload(file_path, chunksize=-1, resumable=True)
 
-    request = youtube.videos().insert(
-        part="snippet,status",
-        body=body,
-        media_body=media
-    )
-    print(request)
+        request = youtube.videos().insert(
+            part="snippet,status",
+            body=body,
+            media_body=media
+        )
 
-    response = None
-    while response is None:
-        status, response = request.next_chunk()
-        if status:
-            print(f"Uploading... {int(status.progress() * 100)}%")
+        print("🚀 Starting upload...")
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                print(f"Uploading... {int(status.progress() * 100)}%")
 
-    print(f"\n✅ Video uploaded: https://www.youtube.com/watch?v={response['id']}")
-    return response
+        print(f"\n✅ Video uploaded: https://www.youtube.com/watch?v={response['id']}")
+        return response
 
-
-
-
-
+    except HttpError as e:
+        print("🚨 YOUTUBE API ERROR:")
+        print(e)
+        return None
+    except Exception as e:
+        print("🚨 UPLOAD FAILED:")
+        print(e)
+        return None
 
